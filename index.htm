@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Metamask Authorization Example</title>
+</head>
+
+<body>
+    <h1>Metamask Authorization Example</h1>
+    <div id="walletInfo">
+        <p id="walletAddress"></p>
+        <p id="walletBalance"></p>
+    </div>
+    <div id="authorizationButtons">
+        <button id="loginButton">Login with Metamask</button>
+        <button id="logoutButton">Logout</button>
+    </div>
+    <div id="transferForm">
+        <h2>Transfer Tokens</h2>
+        <input type="text" id="recipientAddress" placeholder="Recipient Address">
+        <input type="number" id="tokenAmount" placeholder="Token Amount">
+        <button id="transferButton">Transfer</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script>
+        window.addEventListener("load", async function () {
+            const walletAddressElement = document.getElementById("walletAddress");
+            const walletBalanceElement = document.getElementById("walletBalance");
+            const loginButton = document.getElementById("loginButton");
+            const logoutButton = document.getElementById("logoutButton");
+            const transferButton = document.getElementById("transferButton");
+
+            // Проверка поддержки браузером и наличия установленного Metamask
+            if (typeof window.ethereum !== 'undefined') {
+                console.log('Metamask is installed!');
+                const web3 = new Web3(window.ethereum);
+                const ethereum = window.ethereum;
+
+                // Функция для проверки авторизации пользователя в Metamask
+                const checkAuthorization = async () => {
+                    const accounts = await ethereum.request({
+                        method: "eth_accounts"
+                    });
+
+                    const isAuthorized = !!accounts.length;
+
+                    if (!isAuthorized) {
+                        login();
+                    }
+
+                    return isAuthorized;
+                };
+
+                // Вывод списка всех токенов подключенных к Metamask
+
+
+
+                // Функция для получения баланса кошелька
+                const getWalletBalance = async () => {
+                    try {
+                        const accounts = await ethereum.request({
+                            method: 'eth_accounts'
+                        });
+                        const address = accounts[0];
+                        const apiKey =
+                        'IDVAW711F6XG8AA86U1Z6679YBX4F29P7M'; // Замените на ваш API ключ
+                        const tokenContractAddress =
+                        '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'; // Адрес контракта токена Polygon Mainnet
+
+                        const balances = {
+                            eth: 0,
+                            tokens: 0
+                        };
+
+                        // Получение баланса ETH
+                        const ethBalance = await ethereum.request({
+                            method: 'eth_getBalance',
+                            params: [address, 'latest'],
+                            from: address
+                        });
+                        balances.eth = parseFloat(web3.utils.fromWei(ethBalance, 'ether'));
+
+                        // Получение баланса токенов
+                        const tokenBalance = await ethereum.request({
+                            method: 'eth_call',
+                            params: [{
+                                to: tokenContractAddress,
+                                data: `0x70a08231000000000000000000000000${address.slice(2)}`
+                            }, 'latest']
+                        });
+                        balances.tokens = parseFloat(web3.utils.fromWei(tokenBalance, 'ether'));
+
+                        return balances;
+                    } catch (error) {
+                        console.error('Error occurred while retrieving wallet balance:', error);
+                        return {
+                            eth: 0,
+                            tokens: 0
+                        };
+                    }
+                };
+
+
+
+
+
+
+
+
+                // Функция для авторизации пользователя
+                const login = async () => {
+                    try {
+                        const accounts = await ethereum.request({
+                            method: "eth_requestAccounts"
+                        });
+                        const account = accounts[0];
+                        const walletBalance = await getWalletBalance();
+                        walletAddressElement.textContent = `Wallet Address: ${account}`;
+                        walletBalanceElement.textContent =
+                            `Wallet Balance: ${walletBalance.eth} ETH, ${walletBalance.tokens} Tokens`;
+                        loginButton.style.display = "none";
+                        logoutButton.style.display = "inline-block";
+                        transferButton.disabled = false;
+                    } catch (error) {
+                        console.error("Error occurred while connecting to Metamask:", error);
+                    }
+                };
+
+
+                // Функция для выхода из аккаунта
+                const logout = async () => {
+                    try {
+                        await ethereum.request({
+                            method: 'wallet_requestPermissions',
+                            params: [{
+                                eth_accounts: {}
+                            }]
+                        });
+
+                        walletAddressElement.textContent = "";
+                        walletBalanceElement.textContent = "";
+                        loginButton.style.display = "inline-block";
+                        logoutButton.style.display = "none";
+                        transferButton.disabled = true;
+                    } catch (error) {
+                        console.error("Error occurred while logging out from Metamask:", error);
+                    }
+                };
+
+
+                // Функция для перевода токенов на другой кошелек
+                const transferTokens = async () => {
+                    const recipientAddress = document.getElementById("recipientAddress").value;
+                    const tokenAmount = document.getElementById("tokenAmount").value;
+                    const accounts = await ethereum.request({
+                        method: "eth_accounts"
+                    });
+                    const balance = await web3.eth.getBalance(accounts[0]);
+
+                    if (parseFloat(balance) >= parseFloat(tokenAmount)) {
+                        try {
+                            await web3.eth.sendTransaction({
+                                from: accounts[0],
+                                to: recipientAddress,
+                                value: web3.utils.toWei(tokenAmount, "ether"),
+                            });
+                            console.log(`${tokenAmount} ETH sent to ${recipientAddress}`);
+                        } catch (error) {
+                            console.error("Error occurred while transferring tokens:", error);
+                        }
+                    } else {
+                        console.error("Insufficient balance to transfer tokens");
+                    }
+                };
+
+                // Обработчик кнопки авторизации
+                loginButton.addEventListener("click", login);
+
+                // Обработчик кнопки выхода из аккаунта
+                logoutButton.addEventListener("click", logout);
+
+                // Обработчик кнопки перевода токенов
+                transferButton.addEventListener("click", transferTokens);
+
+                // Проверка авторизации и обновление интерфейса
+                if (await checkAuthorization()) {
+                    const accounts = await ethereum.request({
+                        method: "eth_accounts"
+                    });
+                    const walletBalance = await getWalletBalance();
+                    walletAddressElement.textContent = `Wallet Address: ${accounts[0]}`;
+                    walletBalanceElement.textContent =
+                        `Wallet Balance: ${walletBalance.eth} ETH, ${walletBalance.tokens} Tokens`;
+                    loginButton.style.display = "none";
+                    logoutButton.style.display = "inline-block";
+                    transferButton.disabled = false;
+                } else {
+                    loginButton.style.display = "inline-block";
+                    logoutButton.style.display = "none";
+                    transferButton.disabled = true;
+                }
+            } else {
+                console.log('Metamask is not installed');
+                loginButton.style.display = "none";
+                logoutButton.style.display = "none";
+                transferButton.disabled = true;
+            }
+        });
+    </script>
+</body>
+
+</html>
